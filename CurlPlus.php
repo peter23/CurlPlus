@@ -1,28 +1,39 @@
 <?php
 
+/**
+ * CurlPlus
+ * @author peter23 <i@peter23.com>
+ */
+
 	class CurlPlus {
 
+		//curl handler
 		protected $ch;
 
+		//basic curl options
 		protected $basic_options = array(
 			CURLOPT_HEADER => true,
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_SSL_VERIFYPEER => false,
 			CURLOPT_SSL_VERIFYHOST => 0,
-			CURLOPT_TIMEOUT => 300,
+			CURLOPT_TIMEOUT => 600,
 			CURLOPT_CONNECTTIMEOUT => 30,
 			CURLOPT_ENCODING => ''
 		);
 
+		//basic http headers
 		protected $basic_headers = array(
 			'Expect:'
 		);
 
+		//data variables
 		protected $additional_headers = array();
 		public $cookies = array();
 		protected $delay1 = 0;
 		protected $delay2 = 0;
 
+		//parameters
+		public $base_url = false;
 		public $follow_location = true;
 		public $logger = false;
 		public $max_redirects = 6;
@@ -30,6 +41,7 @@
 		public $send_cookies = false;
 
 
+		// ===== MAGIC METHODS
 		public function __construct($headers = false) {
 			$this->ch = curl_init();
 			curl_setopt_array($this->ch, $this->basic_options);
@@ -45,14 +57,12 @@
 
 		public function __call($method, $args) {
 			if( ($method == 'logger') && is_callable($this->logger) ) {
-				return call_user_func_array(
-					$this->logger,
-					$args
-				);
+				call_user_func_array($this->logger, $args);
 			}
 		}
 
 
+		// ===== PARAMETERS SETTERS
 		public function setDelay($v1 = 0, $v2 = 0) {
 			$this->delay1 = $v1;
 			$this->delay2 = $v2;
@@ -86,6 +96,7 @@
 		}
 
 
+		// ===== FUNCTIONS-WORKERS
 		protected function sleep() {
 			if($this->delay2) {
 				$delay = mt_rand($this->delay1, $this->delay2);
@@ -99,12 +110,22 @@
 
 		protected function _req($url, $headers = false, $redirect_counts = 0) {
 			if($headers) {
+				//headers for this request only
 				$old_headers = $this->additional_headers;
 				$this->setHeaders( array_merge(
 					$old_headers,
 					is_array($headers) ? $headers : array($headers)
 				) );
 			}
+
+			if($this->base_url) {
+				$url = $this->resolve_url($this->base_url, $url);
+			}
+
+			//Yes, we're using our own cookies parser instead of CURL's
+			//This is because we want to:
+			//1) Store cookies in memory
+			//2) Have ability to dump and restore cookies
 
 			if($this->send_cookies) {
 				$curr_host = parse_url($url, PHP_URL_HOST);
@@ -138,6 +159,7 @@
 				curl_setopt($this->ch, CURLOPT_COOKIE, implode('; ', $cooks));
 			}
 
+			//RUN IT
 			$s = curl_exec($this->ch);
 
 			if($headers) {
@@ -183,17 +205,22 @@
 				}
 			}
 
-			if($location && $this->follow_location) {
+			//Yes, we're using our own follow_location implementation instead of CURL's
+			//This is because we have to process cookies between redirects
 
-				$location = $this->resolve_url($url, $location);
+			if($location && $this->follow_location) {
 
 				$redirect_counts++;
 				if($redirect_counts > $this->max_redirects) {
 					throw new Exception('Too much redirects');
 				}
-				return $this->Get($location, false, $redirect_counts);
+				return $this->Get($this->resolve_url($url, $location), false, $redirect_counts);
 
 			} else {
+
+				//Yes, we're not using class for response
+				//This is because we want to keep the code as fast as possible
+				//But anyway we want to process cookies by ourselves
 
 				return array(
 					'code' => $code,
@@ -206,6 +233,7 @@
 		}
 
 
+		// ===== MAIN ACTIONS
 		public function Get($url, $headers = false, $redirect_counts = 0) {
 			curl_setopt_array($this->ch, array(
 				CURLOPT_POSTFIELDS => false,
@@ -221,10 +249,10 @@
 
 		public function Post($url, $body, $headers = false) {
 			curl_setopt_array($this->ch, array(
-				CURLOPT_POSTFIELDS => $body,
-				CURLOPT_POST => true,
-				CURLOPT_CUSTOMREQUEST => 'POST',
 				CURLOPT_HTTPGET => false,
+				CURLOPT_CUSTOMREQUEST => 'POST',
+				CURLOPT_POST => true,
+				CURLOPT_POSTFIELDS => $body,
 				CURLOPT_URL => $url,
 			));
 			$this->logger('POST '.$url);
@@ -234,10 +262,10 @@
 
 		public function Put($url, $body, $headers = false) {
 			curl_setopt_array($this->ch, array(
-				CURLOPT_POSTFIELDS => $body,
 				CURLOPT_POST => false,
-				CURLOPT_CUSTOMREQUEST => 'PUT',
 				CURLOPT_HTTPGET => false,
+				CURLOPT_CUSTOMREQUEST => 'PUT',
+				CURLOPT_POSTFIELDS => $body,
 				CURLOPT_URL => $url,
 			));
 			$this->logger('PUT '.$url);
@@ -249,8 +277,8 @@
 			curl_setopt_array($this->ch, array(
 				CURLOPT_POSTFIELDS => false,
 				CURLOPT_POST => false,
-				CURLOPT_CUSTOMREQUEST => 'DELETE',
 				CURLOPT_HTTPGET => false,
+				CURLOPT_CUSTOMREQUEST => 'DELETE',
 				CURLOPT_URL => $url,
 			));
 			$this->logger('DELETE '.$url);
@@ -258,6 +286,7 @@
 		}
 
 
+		// ===== MISC FUNCTIONS
 		public function getRandomUserAgent() {
 			static $random_agents_components, $random_agents;
 			if(!isset($random_agents_components)) {
