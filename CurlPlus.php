@@ -298,7 +298,7 @@
 					'applewebkit' => 'AppleWebKit/{300,999}.{10,99} (KHTML, like Gecko)',
 					'safari' => 'Safari/{300,999}.{10,99}',
 					'gecko' => 'Gecko/{2001,2020}{0,1}{1,9}{0,1}{1,9}',
-					'firefox_rv' => 'rv:{1,10}.{1,9}.{1,9}',
+					'firefox_rv' => 'rv:{1,90}.{1,9}.{1,9}',
 					'firefox' => 'Firefox/{4,90}.{1,9}.{1,9}',
 				);
 			}
