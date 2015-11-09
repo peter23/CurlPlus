@@ -29,11 +29,12 @@
 		//data variables
 		protected $additional_headers = array();
 		public $cookies = array();
-		protected $delay1 = 0;
-		protected $delay2 = 0;
+		private $vals = array();
 
 		//parameters
 		public $base_url = false;
+		public $delay = 0;
+		public $delay2 = 0;
 		public $follow_location = true;
 		public $logger = false;
 		public $max_redirects = 6;
@@ -62,49 +63,69 @@
 		}
 
 
-		// ===== PARAMETERS SETTERS
-		public function setDelay($v1 = 0, $v2 = 0) {
-			$this->delay1 = $v1;
-			$this->delay2 = $v2;
-		}
+		// ===== PARAMETERS
+		public function __get($n) {
+			if($n == 'headers') {
+				return array_merge($this->basic_headers, $this->additional_headers);
 
-		public function setHeaders($h = false) {
-			if($h) {
-				if(!is_array($h)) {
-					$h = array($h);
-				}
-				curl_setopt($this->ch, CURLOPT_HTTPHEADER, array_merge($this->basic_headers, $h));
-				$this->additional_headers = $h;
-			} else {
-				curl_setopt($this->ch, CURLOPT_HTTPHEADER, $this->basic_headers);
-				$this->additional_headers = array();
+			} elseif($n == 'proxy') {
+				return isset($this->vals['proxy']) ? $this->vals['proxy'] : false;
+
+			} elseif(($n == 'referer') || ($n == 'referrer')) {
+				return isset($this->vals['referer']) ? $this->vals['referer'] : false;
+
+			} elseif($n == 'userAgent') {
+				return isset($this->vals['userAgent']) ? $this->vals['userAgent'] : false;
+
 			}
+
+			return null;
 		}
 
-		public function setProxy($prox = '') {
-			$this->logger('setProxy '.$prox);
-			curl_setopt($this->ch, CURLOPT_PROXY, $prox);
-		}
 
-		public function setRandomUserAgent() {
-			$this->setUserAgent($this->getRandomUserAgent());
-		}
+		public function __set($n, $v) {
+			if($n == 'headers') {
+				if($v) {
+					if(!is_array($v)) {
+						$v = array($v);
+					}
+					curl_setopt($this->ch, CURLOPT_HTTPHEADER, array_merge($this->basic_headers, $v));
+					$this->additional_headers = $v;
+				} else {
+					curl_setopt($this->ch, CURLOPT_HTTPHEADER, $this->basic_headers);
+					$this->additional_headers = array();
+				}
 
-		public function setUserAgent($ua = '') {
-			$this->logger('setUserAgent '.$ua);
-			curl_setopt($this->ch, CURLOPT_USERAGENT, $ua);
+			} elseif($n == 'proxy') {
+				$this->logger('set proxy '.$v);
+				curl_setopt($this->ch, CURLOPT_PROXY, $v);
+				$this->vals['proxy'] = $v;
+
+			} elseif(($n == 'referer') || ($n == 'referrer')) {
+				//$this->logger('set referer '.$v);
+				curl_setopt($this->ch, CURLOPT_REFERER, $v);
+				$this->vals['referer'] = $v;
+
+			} elseif($n == 'userAgent') {
+				//$this->logger('set userAgent '.$v);
+				curl_setopt($this->ch, CURLOPT_USERAGENT, $v);
+				$this->vals['userAgent'] = $v;
+
+			}
 		}
 
 
 		// ===== FUNCTIONS-WORKERS
 		protected function sleep() {
 			if($this->delay2) {
-				$delay = mt_rand($this->delay1, $this->delay2);
+				$delay = mt_rand($this->delay, $this->delay2);
 			} else {
-				$delay = $this->delay1;
+				$delay = $this->delay;
 			}
-			$this->logger('sleep '.$delay);
-			sleep($delay);
+			if($delay) {
+				$this->logger('sleep '.$delay);
+				sleep($delay);
+			}
 		}
 
 
@@ -177,7 +198,7 @@
 			$headers = substr($s, 0, $header_size);
 			$location = curl_getinfo($this->ch, CURLINFO_REDIRECT_URL);
 
-			$this->logger('   HTTP '.$code.' ('.$header_size.'+'.(strlen($s) - $header_size).' b)'.($location ? ' -> '.$location : ''));
+			$this->logger('  HTTP '.$code.' ('.$header_size.'+'.(strlen($s) - $header_size).' b)'.($location ? ' -> '.$location : ''));
 
 			if($this->save_cookies) {
 				if(!isset($curr_host)) {
@@ -194,12 +215,12 @@
 						if(preg_match('#expires\s*=([^;\n]+)#i', $m[3][$mkey], $m2)) {
 							$expires = strtotime(trim($m2[1]));
 							if($expires && ($expires < time())) {
-								$this->logger('server set expired cookie '.$cookname.'@'.$cook_domain);
+								//$this->logger('server set expired cookie '.$cookname.'@'.$cook_domain);
 								unset($this->cookies[$cook_domain][$cookname]);
 								continue;
 							}
 						}
-						$this->logger('server set cookie '.$cookname.'@'.$cook_domain);
+						//$this->logger('server set cookie '.$cookname.'@'.$cook_domain);
 						$this->cookies[$cook_domain][$cookname] = trim($m[2][$mkey]);
 					}
 				}
@@ -227,6 +248,7 @@
 					'headers' => $headers,
 					'body' => substr($s, $header_size),
 					'location' => $location,
+					'url' => $url,
 				);
 
 			}
