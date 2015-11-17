@@ -29,17 +29,21 @@
 		//data variables
 		protected $additional_headers = array();
 		public $cookies = array();
-		private $vals = array();
+		private $proxylist_idx = -1;
 
 		//parameters
 		public $base_url = false;
 		public $delay = 0;
 		public $delay2 = 0;
 		public $follow_location = true;
-		public $logger = false;
+		public $logger = null;
 		public $max_redirects = 6;
+		private $proxy = null;
+		private $proxylist = array();
+		private $referer = null;
 		public $save_cookies = false;
 		public $send_cookies = false;
+		private $userAgent = null;
 
 
 		// ===== MAGIC METHODS
@@ -68,14 +72,11 @@
 			if($n == 'headers') {
 				return array_merge($this->basic_headers, $this->additional_headers);
 
-			} elseif($n == 'proxy') {
-				return isset($this->vals['proxy']) ? $this->vals['proxy'] : false;
+			} elseif(($n == 'proxy') || ($n == 'proxylist') || ($n == 'userAgent')) {
+				return $this->{$n};
 
 			} elseif(($n == 'referer') || ($n == 'referrer')) {
-				return isset($this->vals['referer']) ? $this->vals['referer'] : false;
-
-			} elseif($n == 'userAgent') {
-				return isset($this->vals['userAgent']) ? $this->vals['userAgent'] : false;
+				return $this->referer;
 
 			}
 
@@ -99,17 +100,30 @@
 			} elseif($n == 'proxy') {
 				$this->logger('set proxy '.$v);
 				curl_setopt($this->ch, CURLOPT_PROXY, $v);
-				$this->vals['proxy'] = $v;
+				$this->proxy = $v;
+
+			} elseif($n == 'proxylist') {
+				if(!is_array($v)) {
+					$v = explode("\n", trim($v));
+				}
+				$this->proxylist = array();
+				foreach($v as $v1) {
+					$v1 = trim($v1);
+					if(!$v1) continue;
+					$this->proxylist[] = $v1;
+				}
+				shuffle($this->proxylist);
+				$this->proxylist_idx = -1;
 
 			} elseif(($n == 'referer') || ($n == 'referrer')) {
 				//$this->logger('set referer '.$v);
 				curl_setopt($this->ch, CURLOPT_REFERER, $v);
-				$this->vals['referer'] = $v;
+				$this->referer = $v;
 
 			} elseif($n == 'userAgent') {
 				//$this->logger('set userAgent '.$v);
 				curl_setopt($this->ch, CURLOPT_USERAGENT, $v);
-				$this->vals['userAgent'] = $v;
+				$this->userAgent = $v;
 
 			}
 		}
@@ -305,6 +319,15 @@
 			));
 			$this->logger('DELETE '.$url);
 			return $this->_req($url, $headers);
+		}
+
+
+		public function changeProxy() {
+			$this->proxylist_idx++;
+			if($this->proxylist_idx >= count($this->proxylist)) {
+				$this->proxylist_idx = 0;
+			}
+			$this->__set('proxy', @$this->proxylist[$this->proxylist_idx]);
 		}
 
 
