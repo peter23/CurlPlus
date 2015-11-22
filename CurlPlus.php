@@ -78,9 +78,10 @@
 			} elseif(($n == 'referer') || ($n == 'referrer')) {
 				return $this->referer;
 
-			}
+			} else {
+				throw new Exception('Trying to get nonexistent property');
 
-			return null;
+			}
 		}
 
 
@@ -124,6 +125,9 @@
 				//$this->logger('set userAgent '.$v);
 				curl_setopt($this->ch, CURLOPT_USERAGENT, $v);
 				$this->userAgent = $v;
+
+			} else {
+				throw new Exception('Trying to set nonexistent property');
 
 			}
 		}
