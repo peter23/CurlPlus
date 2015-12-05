@@ -38,11 +38,21 @@
 		public $follow_location = true;
 		public $logger = null;
 		public $max_redirects = 6;
+		public $save_cookies = false;
+		public $send_cookies = false;
+		//__get/__set parameters
+		protected $curl_options_aliases = array(
+			'referer' => CURLOPT_REFERER,
+			'timeoutConnect' => CURLOPT_CONNECTTIMEOUT,
+			'timeoutTotal' => CURLOPT_TIMEOUT,
+			'userAgent' => CURLOPT_USERAGENT,
+		);
+		private $dontReuseConnection = false;
 		private $proxy = null;
 		private $proxylist = array();
 		private $referer = null;
-		public $save_cookies = false;
-		public $send_cookies = false;
+		private $timeoutConnect = 30;
+		private $timeoutTotal = 600;
 		private $userAgent = null;
 
 
@@ -69,14 +79,19 @@
 
 		// ===== PARAMETERS
 		public function __get($n) {
+			if($n == 'referrer') {
+				$n = 'referer';
+			}
+
 			if($n == 'headers') {
 				return array_merge($this->basic_headers, $this->additional_headers);
 
-			} elseif(($n == 'proxy') || ($n == 'proxylist') || ($n == 'userAgent')) {
+			} elseif(
+				($n == 'proxy')
+				|| ($n == 'proxylist')
+				|| isset($this->curl_options_aliases[$n])
+			) {
 				return $this->{$n};
-
-			} elseif(($n == 'referer') || ($n == 'referrer')) {
-				return $this->referer;
 
 			} else {
 				throw new Exception('Trying to get nonexistent property');
@@ -86,6 +101,10 @@
 
 
 		public function __set($n, $v) {
+			if($n == 'referrer') {
+				$n = 'referer';
+			}
+
 			if($n == 'headers') {
 				if($v) {
 					if(!is_array($v)) {
@@ -98,10 +117,32 @@
 					$this->additional_headers = array();
 				}
 
+			} elseif($n == 'dontReuseConnection') {
+				$v = $v ? true : false;
+				curl_setopt_array($this->ch, array(
+					CURLOPT_FORBID_REUSE => $v,
+					CURLOPT_FRESH_CONNECT => $v,
+				));
+				$this->dontReuseConnection = $v;
+
 			} elseif($n == 'proxy') {
 				$this->logger('set proxy '.$v);
-				curl_setopt($this->ch, CURLOPT_PROXY, $v);
 				$this->proxy = $v;
+				$v = explode('://', $v);
+				$set_proxy_type = CURLPROXY_HTTP;
+				if(count($v) == 1) {
+					$proxy = trim($v[0]);
+				} else {
+					$proxy_type = strtolower(trim($v[0]));
+					if(substr($proxy_type, 0, 5) == 'socks') {
+						$set_proxy_type = CURLPROXY_SOCKS5;
+					}
+					$proxy = trim($v[1]);
+				}
+				curl_setopt_array($this->ch, array(
+					CURLOPT_PROXYTYPE => $set_proxy_type,
+					CURLOPT_PROXY => $proxy,
+				));
 
 			} elseif($n == 'proxylist') {
 				if(!is_array($v)) {
@@ -116,15 +157,10 @@
 				shuffle($this->proxylist);
 				$this->proxylist_idx = -1;
 
-			} elseif(($n == 'referer') || ($n == 'referrer')) {
-				//$this->logger('set referer '.$v);
-				curl_setopt($this->ch, CURLOPT_REFERER, $v);
-				$this->referer = $v;
-
-			} elseif($n == 'userAgent') {
-				//$this->logger('set userAgent '.$v);
-				curl_setopt($this->ch, CURLOPT_USERAGENT, $v);
-				$this->userAgent = $v;
+			} elseif(isset($this->curl_options_aliases[$n])) {
+				//$this->logger('set '.$n.' '.$v);
+				curl_setopt($this->ch, $this->curl_options_aliases[$n], $v);
+				$this->{$n} = $v;
 
 			} else {
 				throw new Exception('Trying to set nonexistent property');
@@ -277,7 +313,6 @@
 		public function Get($url, $headers = false, $redirect_counts = 0) {
 			curl_setopt_array($this->ch, array(
 				CURLOPT_POSTFIELDS => false,
-				CURLOPT_POST => false,
 				CURLOPT_CUSTOMREQUEST => 'GET',
 				CURLOPT_HTTPGET => true,
 				CURLOPT_URL => $url,
@@ -287,42 +322,31 @@
 		}
 
 
-		public function Post($url, $body, $headers = false) {
+		public function Custom($method, $url, $body = false, $headers = false) {
+			$method = strtoupper($method);
 			curl_setopt_array($this->ch, array(
-				CURLOPT_HTTPGET => false,
-				CURLOPT_CUSTOMREQUEST => 'POST',
-				CURLOPT_POST => true,
 				CURLOPT_POSTFIELDS => $body,
+				CURLOPT_HTTPGET => ($body == false),
+				CURLOPT_CUSTOMREQUEST => $method,
 				CURLOPT_URL => $url,
 			));
-			$this->logger('POST '.$url);
+			$this->logger($method.' '.$url);
 			return $this->_req($url, $headers);
 		}
 
 
-		public function Put($url, $body, $headers = false) {
-			curl_setopt_array($this->ch, array(
-				CURLOPT_POST => false,
-				CURLOPT_HTTPGET => false,
-				CURLOPT_CUSTOMREQUEST => 'PUT',
-				CURLOPT_POSTFIELDS => $body,
-				CURLOPT_URL => $url,
-			));
-			$this->logger('PUT '.$url);
-			return $this->_req($url, $headers);
+		public function Post($url, $body = false, $headers = false) {
+			return $this->Custom('POST', $url, $body, $headers);
 		}
 
 
-		public function Delete($url, $headers = false) {
-			curl_setopt_array($this->ch, array(
-				CURLOPT_POSTFIELDS => false,
-				CURLOPT_POST => false,
-				CURLOPT_HTTPGET => false,
-				CURLOPT_CUSTOMREQUEST => 'DELETE',
-				CURLOPT_URL => $url,
-			));
-			$this->logger('DELETE '.$url);
-			return $this->_req($url, $headers);
+		public function Put($url, $body = false, $headers = false) {
+			return $this->Custom('PUT', $url, $body, $headers);
+		}
+
+
+		public function Delete($url, $body = false, $headers = false) {
+			return $this->Custom('DELETE', $url, $body, $headers);
 		}
 
 
