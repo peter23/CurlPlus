@@ -60,7 +60,7 @@
 		public function __construct($headers = false) {
 			$this->ch = curl_init();
 			curl_setopt_array($this->ch, $this->basic_options);
-			$this->setHeaders($headers);
+			$this->headers = $headers;
 		}
 
 
@@ -187,10 +187,10 @@
 			if($headers) {
 				//headers for this request only
 				$old_headers = $this->additional_headers;
-				$this->setHeaders( array_merge(
+				$this->headers = array_merge(
 					$old_headers,
 					is_array($headers) ? $headers : array($headers)
-				) );
+				);
 			}
 
 			if($this->base_url) {
@@ -238,7 +238,7 @@
 			$s = curl_exec($this->ch);
 
 			if($headers) {
-				$this->setHeaders($old_headers);
+				$this->headers = $old_headers;
 			}
 
 			$this->sleep();
