@@ -1,9 +1,15 @@
 <?php
 
 /**
- * CurlPlus
- * @author peter23 <i@peter23.com>
+ * CurlPlus is a PHP CURL wrapper with many additional functions
+ *
+ * For more information @see readme.md
+ *
+ * @link https://github.com/peter23/CurlPlus
+ * @author i@peter23.com
+ * @license http://www.gnu.org/licenses/gpl-3.0.html GNU General Public License, version 3
  */
+
 
 	class CurlPlus {
 
