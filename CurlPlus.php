@@ -79,6 +79,8 @@
 		public function __call($method, $args) {
 			if( ($method == 'logger') && is_callable($this->logger) ) {
 				call_user_func_array($this->logger, $args);
+			} else {
+				throw new Exception('Call to undefined method CurlPlus::'.$method.'()');
 			}
 		}
 
