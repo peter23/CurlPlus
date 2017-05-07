@@ -35,6 +35,9 @@
 		//data variables
 		protected $additional_headers = array();
 		public $cookies = array();
+		private $fh_headers = null;
+		private $fh_body = null;
+		private $fh_null = null;
 		private $proxylist_idx = -1;
 
 		//parameters
@@ -255,6 +258,11 @@
 				throw new Exception('CURL error: '.curl_error($this->ch));
 			}
 
+			if($this->fh_headers && $this->fh_body) {
+				fseek($this->fh_headers, 0);
+				$s = stream_get_contents($this->fh_headers);
+			}
+
 			$code = curl_getinfo($this->ch, CURLINFO_HTTP_CODE);
 			$header_size = curl_getinfo($this->ch, CURLINFO_HEADER_SIZE);
 			$headers = substr($s, 0, $header_size);
@@ -318,6 +326,37 @@
 
 
 		// ===== MAIN ACTIONS
+		public function setSaveToFile($file = false) {
+			if($this->fh_headers) {
+				fclose($this->fh_headers);
+				$this->fh_headers = null;
+			}
+			if($this->fh_body) {
+				fclose($this->fh_body);
+				$this->fh_body = null;
+			}
+			if($file) {
+				$this->fh_headers = fopen('php://temp', 'w');
+				$this->fh_body = fopen($file, 'w');
+				curl_setopt_array($this->ch, array(
+					CURLOPT_WRITEHEADER => $this->fh_headers,
+					CURLOPT_FILE => $this->fh_body,
+					CURLOPT_HEADER => false,
+				));
+			} else {
+				if($this->fh_null === null) {
+					$this->fh_null = file_exists('/dev/null') ? fopen('/dev/null', 'w') : (file_exists('NUL') ? fopen('NUL', 'w') : null);
+				}
+				curl_setopt_array($this->ch, array(
+					CURLOPT_WRITEHEADER => $this->fh_null,
+					CURLOPT_FILE => $this->fh_null,
+					CURLOPT_HEADER => true,
+					CURLOPT_RETURNTRANSFER => true,
+				));
+			}
+		}
+
+
 		public function Get($url, $headers = false, $redirect_counts = 0) {
 			curl_setopt_array($this->ch, array(
 				CURLOPT_POSTFIELDS => false,
