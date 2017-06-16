@@ -255,10 +255,13 @@
 			$this->sleep();
 
 			if($s === false) {
+				if($this->fh_body || $this->fh_headers) {
+					$this->setSaveToFile();
+				}
 				throw new Exception('CURL error: '.curl_error($this->ch));
 			}
 
-			if($this->fh_headers && $this->fh_body) {
+			if($this->fh_headers) {
 				fseek($this->fh_headers, 0);
 				$s = stream_get_contents($this->fh_headers);
 			}
@@ -269,6 +272,10 @@
 			$location = curl_getinfo($this->ch, CURLINFO_REDIRECT_URL);
 
 			$this->logger('  HTTP '.$code.' ('.$header_size.'+'.(strlen($s) - $header_size).' b)'.($location ? ' -> '.$location : ''));
+
+			if($this->fh_body || $this->fh_headers) {
+				$this->setSaveToFile();
+			}
 
 			if($this->save_cookies) {
 				if(!isset($curr_host)) {
