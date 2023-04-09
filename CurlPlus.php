@@ -80,10 +80,8 @@
 
 
 		public function __call($method, $args) {
-			if($method == 'logger') {
-				if(is_callable($this->logger)) {
-					call_user_func_array($this->logger, $args);
-				}
+			if(($method == 'logger') && is_callable($this->logger)) {
+				call_user_func_array($this->logger, $args);
 			} else {
 				throw new Exception('Call to undefined method CurlPlus::'.$method.'()');
 			}
@@ -502,7 +500,7 @@
 			// Step 3
 			if (preg_match('!^[a-z]+:!i', $url)) return $url;
 			$base = parse_url($base);
-			if ($url{0} == "#") {
+			if ($url[0] == "#") {
 				// Step 2 (fragment)
 				$base['fragment'] = substr($url, 1);
 				return $this->unparse_url($base);
@@ -515,7 +513,7 @@
 					'scheme'=>$base['scheme'],
 					'path'=>substr($url,2),
 				));
-			} else if ($url{0} == "/") {
+			} else if ($url[0] == "/") {
 				// Step 5
 				$base['path'] = $url;
 			} else {
